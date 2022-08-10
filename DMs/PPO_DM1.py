@@ -16,8 +16,10 @@ from torch.nn.functional import one_hot
 import torch
 import numpy as np
 from stable_baselines3 import DQN, PPO
-from CA_env import CreateEnvironment, CreateDecentralizedAgents, CreateCentralizedController, \
-    CreateDecentralizedController, BattleFieldSingleEnv
+
+from environments.env_wrapper import BattleFieldSingleEnv,CreateEnvironment
+from utils.functions import CreateDecentralizedAgents, CreateCentralizedController, \
+    CreateDecentralizedController
 
 # del model # remove to demonstrate saving and loading
 #
@@ -30,7 +32,7 @@ from CA_env import CreateEnvironment, CreateDecentralizedAgents, CreateCentraliz
 #     env.render()
 #     if done:
 #       obs = env.reset()
-from agents.agent import Do_action_DM, DecisionMaker, Stay_DM
+from DMs.simple_DMs import Do_action_DM, DecisionMaker, Stay_DM
 
 
 class PPODecisionMaker(DecisionMaker):

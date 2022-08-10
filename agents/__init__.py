@@ -1,1 +1,1 @@
-from .agent import Agent, DecisionMaker, RandomDecisionMaker
+from .agent import Agent, DecisionMaker

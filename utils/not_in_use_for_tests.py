@@ -5,7 +5,7 @@ from random import sample
 # Just to silent an harmless warning
 from warnings import filterwarnings
 
-from agents.agent import Do_action_DM, Stay_DM
+from DMs.simple_DMs import Do_action_DM, Stay_DM, RandomDecisionMaker
 from DMs.simple_planner import Simple_DM
 from copy import deepcopy
 
@@ -18,9 +18,9 @@ env.render()
 print('env created')
 
 
-from agents import Agent, DecisionMaker, RandomDecisionMaker
+from agents import Agent, DecisionMaker
 from control import CentralizedController, DecentralizedController
-from environments import EnvWrapperPZ
+from environments.env_wrapper import EnvWrapperPZ
 import copy
 
 # import pandas as pd
@@ -141,7 +141,7 @@ def createOneActionAgent(action):
 def CreateDecentralizedIdenticalAgents(env, decision_maker):
     decentralized_agents = {
         agent_id: Agent(decision_maker(env.action_spaces[agent_id]))
-        for agent_id in mac_BF_env.get_env_agents()
+        for agent_id in env.get_env_agents()
     }
     return decentralized_agents
 

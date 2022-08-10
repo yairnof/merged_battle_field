@@ -14,7 +14,8 @@ dependencies:
   - git
   - pip
   - pip:
-    - pettingzoo[all]
+    - pettingzoo
+    - magent
     - git+https://github.com/sarah-keren/ai_dm
     - git+https://github.com/sarah-keren/multi_taxi@0.0.0
     - git+https://github.com/sarah-keren/MAC
