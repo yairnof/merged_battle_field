@@ -11,6 +11,8 @@ class CentralizedController(Controller):
         super().__init__(env)
 
         self.central_agent = central_agent
+        self.observations = []
+        self.step = 1
 
     def get_joint_action(self, observation):
         """Returns the joint actions of all the agents
@@ -39,6 +41,9 @@ class CentralizedController(Controller):
 
         observation = {agent_id: self.central_agent.get_observation(obs)
                        for agent_id, obs in observation.items()}
+        # save observations (step,observations of this step)
+        self.observations.append(observation)
+        self.step+=1
 
         return self.central_agent.get_decision_maker().get_action(observation)
 
