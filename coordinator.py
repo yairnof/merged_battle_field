@@ -13,7 +13,7 @@ class coordinator(ABC):
             env)  # Create a copy of the environment to enable environment steps without changing the real environment
 
     @abstractmethod
-    def approve_joint_plan(self,joint_plan):  # coordinate_color is the color which makes decisions. The other color is simulated
+    def approve_joint_plan(self,joint_plan, obs=None):  # coordinate_color is the color which makes decisions. The other color is simulated
         pass
 
 
@@ -23,7 +23,7 @@ class IdentityCoordinator(coordinator):
     def __init__(self, env):
         super().__init__(env)
 
-    def approve_joint_plan(self, joint_plan):
+    def approve_joint_plan(self, joint_plan, obs=None):
         return {agent: plan[0] for (agent, plan) in joint_plan.items()} # Take the first action of each joint plan, as is
 
 
@@ -35,51 +35,61 @@ class SimGreedyCoordinator(coordinator):
         super().__init__(env)
 
     # This is the greedy vs. greedy coordination
-    def approve_joint_plan(self, joint_plan):
-        approved_blue_plans = self.greedy_coordination(joint_plan, 'blue')
-        approved_red_plans = self.greedy_coordination(joint_plan, 'red')
-        approved_plans = {**approved_red_plans, **approved_blue_plans}
-        return {agent: plan[0] for (agent, plan) in approved_plans.items()}
+    # def approve_joint_plan(self, joint_plan, obs=None):
+    #     approved_blue_plans = self.greedy_coordination(joint_plan, 'blue', obs)
+    #     approved_red_plans = self.greedy_coordination(joint_plan, 'red', obs)
+    #     approved_plans = {**approved_red_plans, **approved_blue_plans}
+    #     return {agent: plan[0] for (agent, plan) in approved_plans.items()}
 
-    # # This is 'no coordination' vs. greedy coordination
-    # def approve_joint_plan(self, joint_plan):
-    #     approved_blue_plans = {agent: plan for (agent, plan) in joint_plan.items() if 'blue' in agent}
-    #     approved_red_plans = self.greedy_coordination(joint_plan, 'red')
+    # This is 'no coordination' vs. greedy coordination
+    def approve_joint_plan(self, joint_plan, obs=None):
+        approved_blue_plans = {agent: plan[0] for (agent, plan) in joint_plan.items() if 'blue' in agent}
+        approved_red_plans = self.greedy_coordination(joint_plan, 'red', obs)
+        return {**approved_red_plans, **approved_blue_plans}
+
+    # This is 'no coordination' vs. 'no coordination'
+    # def approve_joint_plan(self, joint_plan, obs=None):
+    #     approved_blue_plans = {agent: plan[0] for (agent, plan) in joint_plan.items() if 'blue' in agent}
+    #     approved_red_plans = {agent: plan[0] for (agent, plan) in joint_plan.items() if 'blue' in agent}
     #     return {**approved_red_plans, **approved_blue_plans}
 
-    # # This is 'no coordination' vs. 'no coordination'
-    # def approve_joint_plan(self, joint_plan):
-    #     approved_blue_plans = {agent: plan for (agent, plan) in joint_plan.items() if 'blue' in agent}
-    #     approved_red_plans = {agent: plan for (agent, plan) in joint_plan.items() if 'blue' in agent}
-    #     return {**approved_red_plans, **approved_blue_plans}
-
-    def greedy_coordination(self, joint_plan, coordinate_color):
-        opponent_color = 'blue' if coordinate_color == 'red' else 'red'
-        opponent_plans = {agent: plan for (agent, plan) in joint_plan.items() if opponent_color in agent}
+    def greedy_coordination(self, joint_plan, coordinate_color, obs=None, use_simulation=False):
+        # opponent_color = 'blue' if coordinate_color == 'red' else 'red' # Suppose we don't know opponent plans
+        # opponent_plans = {agent: plan for (agent, plan) in joint_plan.items() if opponent_color in agent} # Suppose we don't know opponent plans
         coordination_plans = {agent: plan for (agent, plan) in joint_plan.items() if coordinate_color in agent}
-        checked_plans = opponent_plans  # Opponent plans are always the same
+        checked_plans = {}
 
         for (agent, plan) in coordination_plans.items():  # Consider adding each plan
             checked_plans[agent] = plan
 
-            # Simulate adding the current plan
-            total_rewards, observations = factory.CreateSimulationController(self.SimEnv, checked_plans)
+            if use_simulation:
+                # Simulate adding the current plan
+                total_rewards, sim_obs_seq = factory.CreateSimulationController(self.SimEnv, checked_plans)
+                initial_obs = sim_obs_seq[0]
+            else:
+                initial_obs = obs
+                sim_obs_seq = None
 
             # Intended positions, before the environment prevents collisions
-            estimated_poses = utils.all_est_agents_pos_seq(observations[0], checked_plans)
+            estimated_poses = utils.all_est_agents_pos_seq(initial_obs, checked_plans)
 
             for (prev_agent, prev_plan) in checked_plans.items():  # Checking hard constraints vs. previous taken plans
-                if opponent_color in prev_agent or prev_agent == agent:  # Skipping opponent plans
+                if prev_agent == agent: # or opponent_color in prev_agent or # Suppose we don't know opponent plans
                     continue
 
                 # If hard constraints are violated, current plan is not taken
-                if performance.forbidden_plans(observations, prev_plan, prev_agent, plan, agent, estimated_poses):
+                if performance.forbidden_plans(sim_obs_seq, prev_plan, prev_agent, plan, agent, estimated_poses):
                     checked_plans[agent] = self.default_action(checked_plans)
 
         # Dropping opponent plans for return
-        return {agent: plan for (agent, plan) in checked_plans.items() if coordinate_color in agent}
+        return {agent: plan[0] for (agent, plan) in checked_plans.items() if coordinate_color in agent}
 
     # Create a plan with default action for a length of the minimum given joint plan
     def default_action(self, joint_plan):
         plan_length = min([len(plan) for (agent, plan) in joint_plan.items()])
         return [utils.action_str_to_num('Do-Nothing') for i in range(plan_length)]
+
+
+
+
+

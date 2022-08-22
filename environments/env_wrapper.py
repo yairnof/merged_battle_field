@@ -145,23 +145,31 @@ def CreateEnvironment(minimap=False):
 
 
 # Create multiple agents divided into two groups of different decision makers
-def CreateDecentralizedAgents(env, blue_decision_maker, red_decision_maker):
-    decentralized_blue_agents = {
-        agent_id: Agent(deepcopy(blue_decision_maker))
-        for agent_id in env.get_env_agents() if 'blue' in agent_id
-    }
+def CreateDecentralizedAgents(env, blue_decision_maker, red_decision_maker, add_agent_ids=False):
+    if not add_agent_ids:
+        decentralized_blue_agents = {
+            agent_id: Agent(deepcopy(blue_decision_maker))
+            for agent_id in env.get_env_agents() if 'blue' in agent_id
+        }
+
+        decentralized_red_agents = {
+            agent_id: Agent(deepcopy(red_decision_maker))
+            for agent_id in env.get_env_agents() if 'red' in agent_id
+        }
+
+    else:
+        decentralized_blue_agents = {
+            agent_id: Agent(blue_decision_maker(agent_id))
+            for agent_id in env.get_env_agents() if 'blue' in agent_id
+        }
+
+        decentralized_red_agents = {
+            agent_id: Agent(red_decision_maker(agent_id))
+            for agent_id in env.get_env_agents() if 'red' in agent_id
+        }
+
     # decentralized_blue_agents["blue_0"] = Agent(blue_decision_maker(env.action_spaces["blue_0"],10))
     # decentralized_blue_agents["blue_1"] = Agent(blue_decision_maker(env.action_spaces["blue_1"], 14))
-
-    # decentralized_red_agents = {
-    #     agent_id: Agent(red_decision_maker(env.action_spaces[agent_id]))
-    #     for agent_id in mac_BF_env.get_env_agents() if 'red' in agent_id
-    # }
-
-    decentralized_red_agents = {
-        agent_id: Agent(deepcopy(red_decision_maker))
-        for agent_id in env.get_env_agents() if 'red' in agent_id
-    }
 
     merged_dict = {**decentralized_blue_agents, **decentralized_red_agents}
     return merged_dict

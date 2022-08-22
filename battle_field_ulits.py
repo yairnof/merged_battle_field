@@ -2,31 +2,18 @@ import numpy as np
 import constants as const
 
 # Each tuple contains the action number, a readable name, x difference and y difference
-action_tuples = [(0, '2-Up', 0, -2), (1, 'Up-Left', -1, -1), (2, '1-Up', -1, 0), (3, 'Up-Right', -1, 1),
-                 (4, '2-Left', -2, 0), (5, '1-Left', -1, 0), (6, 'Do-Nothing', 0, 0), (7, '1-Right', 0, 1),
-                 (8, '2-Right', 0, 2), (9, 'Down-Left', 1, -1), (10, '1-Down', 0, 1), (11, 'Down-Right', 1, 1),
+action_tuples = [(0, '2-Up', 0, -2), (1, 'Up-Left', -1, -1), (2, '1-Up', 0, -1), (3, 'Up-Right', 1, -1),
+                 (4, '2-Left', -2, 0), (5, '1-Left', -1, 0), (6, 'Do-Nothing', 0, 0), (7, '1-Right', 1, 0),
+                 (8, '2-Right', 2, 0), (9, 'Down-Left', -1, 1), (10, '1-Down', 0, 1), (11, 'Down-Right', 1, 1),
                  (12, '2-Down', 0, 2),
-                 (13, 'Attack-Up-Left', 0, 0), (14, 'Attack-Up', 0, 0), (15, 'Attack-Up-Left', 0, 0),
-                 (16, 'Attack-Left', 0, 0),  (17, 'Attack-Right', 0, 0), (18, 'Attack-Down-Left', 0, 0),
+                 (13, 'Attack-Up-Left', 0, 0), (14, 'Attack-Up', 0, 0), (15, 'Attack-Up-Right', 0, 0),
+                 (16, 'Attack-Left', 0, 0), (17, 'Attack-Right', 0, 0), (18, 'Attack-Down-Left', 0, 0),
                  (19, 'Attack-Down', 0, 0), (20, 'Attack-Down-Right', 0, 0)]
 
-
-# Get action's number from its name
-def action_num_to_str(action_number):
-    action_str = [name for (num, name, x, y) in action_tuples if num == action_number]
-    return action_str[0]
-
-
-# Get action's name from its number
-def action_str_to_num(action_str):
-    action_num = [num for (num, name, x, y) in action_tuples if name == action_str]
-    return action_num[0]
-
-
-# Get action's x and y differences from its number
-def action_num_to_diff(action_num):
-    pos = [(x, y) for (num, name, x, y) in action_tuples if num == action_num]
-    return pos[0]
+# What attack action to take in each case of a neighbor enemy
+attack_dir = [(13, 'Attack-Up-Left', -1, -1), (14, 'Attack-Up', 0, -1), (15, 'Attack-Up-Right', 1, -1),
+              (16, 'Attack-Left', -1, 0), (17, 'Attack-Right', 1, 0), (18, 'Attack-Down-Left', -1, 1),
+              (19, 'Attack-Down', 0, 1), (20, 'Attack-Down-Right', 1, 1)]
 
 
 # Name the properties of a cell for a single agent, from observation - with minimap mode
@@ -56,7 +43,47 @@ def obs_features_for_agent_at(obs, agent_id, i, j):
                 'binary_agent_id': obs[agent_id][i, j][5:15],
                 'one_hot_action': obs[agent_id][i, j][15:36], 'last_reward': obs[agent_id][i, j][36]}
 
-    # Build an array as list of lists from obs_features_for_agent_at
+
+# Get action's number from its name
+def action_num_to_str(action_number):
+    action_str = [name for (num, name, x, y) in action_tuples if num == action_number]
+    return action_str[0]
+
+
+# Get action's name from its number
+def action_str_to_num(action_str):
+    action_num = [num for (num, name, x, y) in action_tuples if name == action_str]
+    return action_num[0]
+
+
+# Get action's x and y differences from its number
+def action_num_to_diff(action_num):
+    pos = [(x, y) for (num, name, x, y) in action_tuples if num == action_num]
+    return pos[0]
+
+
+# Get action num from desired diff
+def diff_to_action_num(diff):
+    action_num = [num for (num, name, x, y) in action_tuples if [x, y] == diff]
+    return action_num[0]
+
+
+# Use of attack_dir
+def enemy_dir_to_attack_action(enemy_dir):
+    actions = [num for (num, name, x, y) in attack_dir if [y, x] == enemy_dir]
+    return actions[0]
+
+
+# Translate desired agent positions to corresponding actions
+def route_to_actions(route):
+    route = [[y, x] for [x, y] in route]
+    if len(route) == 1:
+        return []
+    diff_seq = [(np.array(j)-np.array(i)).tolist() for i, j in zip(route[:-1], route[1:])]
+    return [diff_to_action_num(d) for d in diff_seq]
+
+
+# Build an array as list of lists from obs_features_for_agent_at
 def obs_features_for_agent(obs, agent_id):
     features_for_agent = []
     for i in range(0, 13):
@@ -68,7 +95,7 @@ def obs_features_for_agent(obs, agent_id):
     return features_for_agent
 
 
-# Build an array as list of lists from obs_features_for_agent_at
+# Build a dictionary of list of lists using obs_features_for_agent
 def obs_features(obs):
     agent_ids = obs.keys()
     return {agent_id: obs_features_for_agent(obs, agent_id) for agent_id in agent_ids}
@@ -102,10 +129,13 @@ def all_agents_pos_seq(observations):
 
 # Position only by advancing initial observation using the plan
 def est_agent_pos_seq(initial_obs, agent_id, plan):
-    e_pos = [agent_pos(initial_obs, agent_id)]
+    # e_pos = [agent_pos(initial_obs, agent_id)] # Taking too long to compute
+
+    e_pos = [np.round(agent_pos_from_its_obs(initial_obs[agent_id])).tolist()]
+
     for i in range(1, len(plan)):
         pos = action_num_to_diff(plan[i])
-        e_pos.append([sum(x) for x in zip(e_pos[i-1], pos)])
+        e_pos.append([sum(x) for x in zip(e_pos[i - 1], pos)])
 
     return e_pos
 
@@ -114,3 +144,32 @@ def est_agent_pos_seq(initial_obs, agent_id, plan):
 def all_est_agents_pos_seq(initial_obs, joint_plan):
     agent_ids = joint_plan.keys()
     return {agent_id: est_agent_pos_seq(initial_obs, agent_id, joint_plan[agent_id]) for agent_id in agent_ids}
+
+
+def map_around_agent(agent_obs):
+    agent_map = np.empty([const.OBS_SIZE, const.OBS_SIZE])
+    for i in range(const.OBS_SIZE):
+        for j in range(const.OBS_SIZE):
+            agent_map[i][j] = agent_obs[i, j][0]
+    return agent_map
+
+
+def enemies_around_agent(agent_obs):
+    agent_enemies = np.empty([const.OBS_SIZE, const.OBS_SIZE])
+    for i in range(const.OBS_SIZE):
+        for j in range(const.OBS_SIZE):
+            agent_enemies[i][j] = agent_obs[i, j][4]
+    return agent_enemies
+
+
+def team_around_agent(agent_obs):
+    agent_enemies = np.empty([const.OBS_SIZE, const.OBS_SIZE])
+    for i in range(const.OBS_SIZE):
+        for j in range(const.OBS_SIZE):
+            agent_enemies[i][j] = agent_obs[i, j][1]
+    return agent_enemies
+
+
+# Works only with minimap=True and extra_features=True
+def agent_pos_from_its_obs(agent_obs):
+    return np.round(agent_obs[0, 0, 39:41] * const.MAP_SIZE)

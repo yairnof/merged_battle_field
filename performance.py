@@ -32,6 +32,7 @@ def forbidden_plans(obs_seq, plan_a, agent_id_a, plan_b, agent_id_b, est_poses):
 def plans_collide(obs_seq, agent_id_a, plan_a, agent_id_b, plan_b, est_poses):
     a_pos_seq = est_poses[agent_id_a]
     b_pos_seq = est_poses[agent_id_b]
-    collisions = [a_pos_seq[i] == b_pos_seq[i] for i in range(len(obs_seq))]
+    min_len = min(len(a_pos_seq), len(b_pos_seq))
+    collisions = [a_pos_seq[i] == b_pos_seq[i] for i in range(min_len)]
     return any(collisions)
 

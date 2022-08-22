@@ -1,6 +1,5 @@
 from .controller import Controller
 
-
 class DecentralizedControllerCoordinator(Controller):
 
     def __init__(self, env, agents, coordinator=None, plan_length=0):
@@ -32,6 +31,8 @@ class DecentralizedControllerCoordinator(Controller):
         joint_action = {}
         joint_plan = {}
         for agent_name in self.agent_ids:
+            if observation.get(agent_name) is None:
+                continue
             if self.coordinator is not None:  # If there's a coordinator, the decision maker returns a plan
                 try:
                     plan = self.agents[agent_name].get_decision_maker().get_plan(observation[agent_name], self.plan_length)
@@ -44,6 +45,6 @@ class DecentralizedControllerCoordinator(Controller):
 
         # The coordinator's approve_joint_action returns the next joint action, after considering the joint plan
         if self.coordinator is not None:
-            joint_action = self.coordinator.approve_joint_plan(joint_plan)
+            joint_action = self.coordinator.approve_joint_plan(joint_plan, observation)
 
         return joint_action

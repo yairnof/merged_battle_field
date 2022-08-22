@@ -1,6 +1,10 @@
 import random
 
 from agents import DecisionMaker
+from copy import deepcopy
+import constants as const
+import factory
+import performance
 
 class Simple_DM(DecisionMaker):
     def __init__(self, action_space, health_th=0.5 , red_team=False):
@@ -143,6 +147,50 @@ class Simple_DM(DecisionMaker):
             return self.attack(atk)
         else:
             return self.chase_closest()
+
+
+class ApproxBestAction(DecisionMaker):
+    def __init__(self, env, agent_id):
+        self.original_env = env
+        self.sim_env = deepcopy(env)
+        self.agent_id = agent_id
+        self.my_color = self.agent_id.split('_')[0]
+        self.opponent_color = 'blue' if self.my_color == 'red' else 'red'
+        self.spaces = env.action_spaces
+
+    def get_action(self, observation):
+        best_action = const.MIN_ACTION_IDX
+        best_value = const.REWARD_SUM_LB
+        for action in range(const.MIN_ACTION_IDX, const.MAX_ACTION_IDX):
+            value = self.simulate_action(action)
+            if value > best_value:
+                best_value = value
+                best_action = action
+        return best_action
+
+    def simulate_action(self, action):
+        best_opponent_reward_sum = self.best_opponent_response(action)
+        return -best_opponent_reward_sum
+
+    # Stochastic hill climbing
+    def best_opponent_response(self, action):
+        current_opponent_actions = {agent: [self.spaces[agent].sample()] for agent in self.spaces.keys() if self.opponent_color in agent}
+        best_opponent_reward_sum = const.REWARD_SUM_LB
+
+        for i in range(const.OPPONENT_ITERATIONS):
+            selected_changes = random.sample(list(current_opponent_actions.keys()), const.NEIGHBORHOOD_SIZE)
+            opponent_actions_candidate = {agent: [self.spaces[agent].sample()] if agent in selected_changes else current_opponent_actions[agent] for agent in current_opponent_actions.keys()}
+            checked_actions = opponent_actions_candidate.copy() # deepcopy(opponent_actions_candidate)
+            checked_actions[self.agent_id] = [action]
+            total_rewards, sim_obs_seq = factory.CreateSimulationController(self.sim_env, checked_actions)
+            reward_sum = performance.colored_total_rewards(total_rewards)
+            opponent_reward_sum = reward_sum[self.opponent_color]
+            if opponent_reward_sum > best_opponent_reward_sum:
+                best_opponent_reward_sum = opponent_reward_sum
+                current_opponent_actions = opponent_actions_candidate.copy()
+            # self.sim_env = deepcopy(self.original_env)  # Rewind simulated environment
+
+        return best_opponent_reward_sum
 
 
 
