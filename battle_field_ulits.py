@@ -44,6 +44,30 @@ def obs_features_for_agent_at(obs, agent_id, i, j):
                 'one_hot_action': obs[agent_id][i, j][15:36], 'last_reward': obs[agent_id][i, j][36]}
 
 
+def seen_agent_ids(obs, opponent_color):
+    if len(obs[0, 0]) == 9 or len(obs[0, 0]) == 5:  # case only minimap on or no minimap no extra
+        assert True
+    elif len(obs[0, 0]) == 41:  # case minimap and extra on
+        id_range = range(7, 17)
+        enemy_idx = 4
+    else:
+        id_range = range(5, 15)
+        enemy_idx = 3
+
+    agent_ids = []
+    for i in range(const.OBS_SIZE):
+        for j in range(const.OBS_SIZE):
+            if obs[i, j][enemy_idx]==1:
+                digits_arr = obs[i, j][id_range].astype(int)
+                char_arr = [str(i) for i in digits_arr.tolist()]
+                char_arr.reverse()
+                agent_id = int(''.join(char_arr), 2)
+                agent_name = opponent_color + '_' + str(agent_id)
+                agent_ids.append(agent_name)
+
+    return agent_ids
+
+
 # Get action's number from its name
 def action_num_to_str(action_number):
     action_str = [name for (num, name, x, y) in action_tuples if num == action_number]

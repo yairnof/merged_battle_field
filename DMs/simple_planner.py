@@ -5,6 +5,7 @@ from copy import deepcopy
 import constants as const
 import factory
 import performance
+import battle_field_ulits as utils
 
 class Simple_DM(DecisionMaker):
     def __init__(self, action_space, health_th=0.5 , red_team=False):
@@ -159,22 +160,25 @@ class ApproxBestAction(DecisionMaker):
         self.spaces = env.action_spaces
 
     def get_action(self, observation):
+        enemy_list = utils.seen_agent_ids(observation, self.opponent_color)
+        if len(enemy_list) == 0:
+            return random.randint(const.MIN_ACTION_IDX, const.MAX_MOVE_ACTION_IDX)
         best_action = const.MIN_ACTION_IDX
         best_value = const.REWARD_SUM_LB
         for action in range(const.MIN_ACTION_IDX, const.MAX_ACTION_IDX):
-            value = self.simulate_action(action)
+            value = self.simulate_action(action, enemy_list)
             if value > best_value:
                 best_value = value
                 best_action = action
         return best_action
 
-    def simulate_action(self, action):
-        best_opponent_reward_sum = self.best_opponent_response(action)
+    def simulate_action(self, action, enemy_list):
+        best_opponent_reward_sum = self.best_opponent_response(action, enemy_list)
         return -best_opponent_reward_sum
 
     # Stochastic hill climbing
-    def best_opponent_response(self, action):
-        current_opponent_actions = {agent: [self.spaces[agent].sample()] for agent in self.spaces.keys() if self.opponent_color in agent}
+    def best_opponent_response(self, action, enemy_list):
+        current_opponent_actions = {agent: [self.spaces[agent].sample()] for agent in enemy_list if self.opponent_color in agent}
         best_opponent_reward_sum = const.REWARD_SUM_LB
 
         for i in range(const.OPPONENT_ITERATIONS):
@@ -188,7 +192,7 @@ class ApproxBestAction(DecisionMaker):
             if opponent_reward_sum > best_opponent_reward_sum:
                 best_opponent_reward_sum = opponent_reward_sum
                 current_opponent_actions = opponent_actions_candidate.copy()
-            # self.sim_env = deepcopy(self.original_env)  # Rewind simulated environment
+            self.sim_env = deepcopy(self.original_env)  # Rewind simulated environment
 
         return best_opponent_reward_sum
 

@@ -32,13 +32,13 @@ class BattleFieldEnv(EnvWrapperPZ):
 
 def CreateEnvironment():
     #Create and reset PettingZoo environment
-    BF_env = battlefield_v5.parallel_env(map_size=const.MAP_SIZE, minimap_mode=True, step_reward=-0.005, dead_penalty=-0.1,
-                                         attack_penalty=-0.1, attack_opponent_reward=0.2, max_cycles=1000,
-                                         extra_features=True)
-
-    # BF_env = battle_v4.parallel_env(map_size=const.MAP_SIZE, minimap_mode=True, step_reward=-0.005, dead_penalty=-0.1,
+    # BF_env = battlefield_v5.parallel_env(map_size=const.MAP_SIZE, minimap_mode=True, step_reward=-0.005, dead_penalty=-0.1,
     #                                      attack_penalty=-0.1, attack_opponent_reward=0.2, max_cycles=1000,
     #                                      extra_features=True)
+
+    BF_env = battle_v4.parallel_env(map_size=const.MAP_SIZE, minimap_mode=True, step_reward=-0.005, dead_penalty=-0.1,
+                                         attack_penalty=-0.1, attack_opponent_reward=0.2, max_cycles=1000,
+                                         extra_features=True)
     BF_env.reset()
 
     # Create a MAC from the PZ environment
