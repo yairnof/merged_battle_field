@@ -10,7 +10,9 @@ from numpy.random import default_rng
 import networkx as nx
 import matplotlib.pyplot as plt
 from DMs.simple_DMs import AttackNearestEnemy
-from DMs.simple_planner import ApproxBestAction
+from DMs.simple_planner import ApproxBestAction, Centralized_programmed_DM, Centralized_Search_DM
+from control.multi_decision_agents_controller import MultiDecisionAgentsController
+from agents import Agent
 
 # Test a centralized controller with a random decision maker
 def test_centralized_controller(env):
@@ -81,8 +83,9 @@ def test_grid_graph():
 
 def test_attack_nearest(env):
     obj = factory.CreateDecentralizedController(env, factory.CreateDecentralizedAgents(env,
-                                                                                       AttackNearestEnemy(),
-                                                                                       AttackNearestEnemy()),
+                                                                                       AttackNearestEnemy,
+                                                                                       AttackNearestEnemy,
+                                                                                       True, True),
                                                         coordinator=coordinator.IdentityCoordinator(env),
                                                         plan_length=const.PLAN_LENGTH)
     return obj
@@ -90,27 +93,47 @@ def test_attack_nearest(env):
 
 def test_attack_nearest_coordinated(env):
     obj = factory.CreateDecentralizedController(env, factory.CreateDecentralizedAgents(env,
-                                                                                       AttackNearestEnemy(),
-                                                                                       AttackNearestEnemy()),
+                                                                                       AttackNearestEnemy,
+                                                                                       AttackNearestEnemy,
+                                                                                       True, True),
                                                 coordinator=coordinator.SimGreedyCoordinator(env),
                                                 plan_length=const.PLAN_LENGTH)
     return obj
+
+
 
 
 def test_approx_best_action(env):
     obj = factory.CreateDecentralizedController(env, factory.CreateDecentralizedAgents(env,
                                                                                        ApproxBestAction,
-                                                                                       AttackNearestEnemy(),
-                                                                                       True, False))
+                                                                                       ApproxBestAction,
+                                                                                       True, True))
 
     return obj
 
 
 def test_approx_best_action_coordinated(env):
-    obj = factory.CreateDecentralizedController(env, factory.CreateDecentralizedAgents(env,
+    last_iteration = factory.CreateDecentralizedController(env, factory.CreateDecentralizedAgents(env,
                                                                                        ApproxBestAction,
                                                                                        ApproxBestAction,
-                                                                                       True),
+                                                                                       True, True),
                                                 coordinator=coordinator.SimGreedyCoordinator(env),
                                                 plan_length=const.PLAN_LENGTH)
-    return obj
+
+    return last_iteration
+
+
+def test_double_centralized_programmed(env):
+    multi_controller = MultiDecisionAgentsController(env, [Agent(Centralized_programmed_DM(env, 'red')),
+                                                           Agent(Centralized_programmed_DM(env, 'blue'))])
+    last_iteration = multi_controller.run(render=True, max_iteration=1000)
+
+    return last_iteration
+
+
+def test_double_centralized_search(env):
+    multi_controller = MultiDecisionAgentsController(env, [Agent(Centralized_Search_DM(env, 'red')),
+                                                           Agent(Centralized_Search_DM(env, 'blue'))])
+    last_iteration = multi_controller.run(render=True, max_iteration=2)
+
+    return last_iteration

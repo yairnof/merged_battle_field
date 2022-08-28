@@ -7,7 +7,7 @@ import battle_field_ulits as utils
 import random
 import matplotlib.pyplot as plt
 import constants as const
-
+from ast import literal_eval
 
 class RandomDecisionMaker:
     def __init__(self, action_space):
@@ -58,25 +58,10 @@ class Stay_DM:
             return 6
 
 
-class GreedyDecisionMaker(DecisionMaker):
-    def __init__(self, env):
-        # We create a full copy of the environment to use it for planning but without changing the original environment
-        self.env = copy.deepcopy(env)
-
-    def get_action(self, observation):
-
-        if isinstance(self.space, dict):
-            return {agent: self.space[agent].sample() for agent in self.space.keys()}
-        else:
-            return self.space.sample()
-
-
 # A decision maker with a pre-defined joint plan, for simulation
 class SimDecisionMaker(DecisionMaker):
     def __init__(self, joint_plan):
-        self.joint_plan = joint_plan
-        self.current_action_index = -1
-        self.min_plan_length = min([len(plan) for plan in joint_plan.values()])
+        self.update_plan(joint_plan)
 
     def get_action(self, observation):
         self.current_action_index += 1
@@ -84,28 +69,74 @@ class SimDecisionMaker(DecisionMaker):
             return None
         return {agent_id: plan[self.current_action_index] for (agent_id, plan) in self.joint_plan.items()}
 
+    def update_plan(self, joint_plan):
+        self.joint_plan = joint_plan
+        self.current_action_index = -1
+        self.min_plan_length = min([len(plan) for plan in joint_plan.values()])
+
 
 class AttackNearestEnemy(DecisionMaker):
-    def __init__(self, **kwargs):
-        # self.agent_id = kwargs['id']
-        pass
+    def __init__(self, env, agent_id):
+        self.env = env
+        self.agent_id = agent_id
+        self.my_color = self.agent_id.split('_')[0]
+        self.opponent_color = 'blue' if self.my_color == 'red' else 'red'
+        self.iteration = 0
+        # self.current_exploration_action = -1
+        self.visit_count = {}
 
     # This decision maker does not return a single action
-    def get_action(self, observation):
-        return self.get_plan(observation, 1)[0]
+    def get_action(self, observation, return_agent_id=False):
+        return self.get_plan(observation, 1, return_agent_id)[0]
 
     # Create a plan to reach the nearest enemy in the shortest path and attack him
-    def get_plan(self, observation, plan_length):
+    def get_plan(self, observation, plan_length, return_agent_id=False):
+        curr_agent_pos = str(utils.agent_pos_from_its_obs(observation).tolist())
+        if curr_agent_pos in self.visit_count:
+            self.visit_count[curr_agent_pos] += 1
+        else:
+            self.visit_count[curr_agent_pos] = 1
+
+
+        self.iteration += 1
+
+        # enemy_list = utils.seen_agent_ids(observation, self.opponent_color)
+        # enemy_list = list(set(enemy_list))  # Sometimes the same agent appears twice
+        #
+        # if len(enemy_list) == 0:
+        #     # self.current_exploration_action = (self.current_exploration_action + 1) % const.MAX_MOVE_ACTION_IDX
+        #     neighbor_cells = utils.neighbor_cells(observation)
+        #     neighbor_visits = {str(cell): self.visit_count[str(cell)] for cell in neighbor_cells if str(cell) in self.visit_count}
+        #     if len(neighbor_visits) < const.MAX_MOVE_ACTION_IDX:
+        #         min_neighbor = random.choice([cell for cell in neighbor_cells if str(cell) not in neighbor_visits])
+        #     else:
+        #         min_neighbor  = min(neighbor_visits, key=neighbor_visits.get)
+        #         min_neighbor = literal_eval(min_neighbor)
+        #     neighbor_diff = min_neighbor - utils.agent_pos_from_its_obs(observation)
+        #     return [utils.diff_to_action_num(neighbor_diff.tolist())]
+
+            #return [self.current_exploration_action]
 
         agent_map = utils.map_around_agent(observation)
         grid_graph = self.build_grid_graph(agent_map, const.OBS_SIZE)
         enemies = utils.enemies_around_agent(observation)
+
+        # Global state - too slow
+        # agent_map = utils.state_grid(self.env.env.state())
+        # grid_graph = self.build_grid_graph(agent_map, const.MAP_SIZE)
+        # enemies = utils.state_enemies(self.env.env.state(), self.my_color)
+
         enemies_pos = np.argwhere(enemies == 1)
         if enemies_pos.size == 0:
-            return [random.randint(const.MIN_ACTION_IDX, const.MAX_MOVE_ACTION_IDX)]
+            if return_agent_id:
+                return self.agent_id, [random.randint(const.MIN_ACTION_IDX, const.MAX_MOVE_ACTION_IDX)]
+            else:
+                return [random.randint(const.MIN_ACTION_IDX, const.MAX_MOVE_ACTION_IDX)]
+
         enemy_set = set([f"{x}:{y}" for [x, y] in enemies_pos.tolist()])
         agent_pos = [const.OBS_SIZE // 2,
                      const.OBS_SIZE // 2]  # utils.agent_pos_from_its_obs(observation).astype(int) if it was absolute position
+
         agent_pos_str = self.list_pos_to_str(agent_pos)
         try:
             # plt.imshow(agent_map)
@@ -115,7 +146,10 @@ class AttackNearestEnemy(DecisionMaker):
             # nx.draw(grid_graph, nx.get_node_attributes(grid_graph, 'pos'), node_color=node_colors, with_labels=True, node_size=10)
             # plt.show()
         except Exception as e:
-            return [random.randint(const.MIN_ACTION_IDX, const.MAX_ACTION_IDX)]
+            if return_agent_id:
+                return self.agent_id, [random.randint(const.MIN_ACTION_IDX, const.MAX_ACTION_IDX)]
+            else:
+                return [random.randint(const.MIN_ACTION_IDX, const.MAX_ACTION_IDX)]
 
         # Instead of reaching the cell of the enemy - Attack it
         path_to_enemy = multi_source_path[::-1]
@@ -123,7 +157,11 @@ class AttackNearestEnemy(DecisionMaker):
         diff = self.str_pos_diff(path_to_enemy[-1], path_to_enemy[-2])
         attack_action = utils.enemy_dir_to_attack_action(diff)
         plan = utils.route_to_actions(self.str_route_to_list(route)) + [attack_action]
-        return plan
+
+        if return_agent_id:
+            return self.agent_id, plan
+        else:
+            return plan
 
     # Build a graph from a grid which is a binary matrix where 0 represent a free cell and any other value is a blocked cell
     def build_grid_graph(self, map_matrix, size):

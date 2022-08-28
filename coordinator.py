@@ -41,10 +41,16 @@ class SimGreedyCoordinator(coordinator):
     #     approved_plans = {**approved_red_plans, **approved_blue_plans}
     #     return {agent: plan[0] for (agent, plan) in approved_plans.items()}
 
+    # # This is 'no coordination' vs. greedy coordination
+    # def approve_joint_plan(self, joint_plan, obs=None):
+    #     approved_blue_plans = {agent: plan[0] for (agent, plan) in joint_plan.items() if 'blue' in agent}
+    #     approved_red_plans = self.greedy_coordination(joint_plan, 'red', obs)
+    #     return {**approved_red_plans, **approved_blue_plans}
+
     # This is 'no coordination' vs. greedy coordination
     def approve_joint_plan(self, joint_plan, obs=None):
-        approved_blue_plans = {agent: plan[0] for (agent, plan) in joint_plan.items() if 'blue' in agent}
-        approved_red_plans = self.greedy_coordination(joint_plan, 'red', obs)
+        approved_blue_plans = self.greedy_coordination(joint_plan, 'blue', obs)
+        approved_red_plans = {agent: plan[0] for (agent, plan) in joint_plan.items() if 'red' in agent}
         return {**approved_red_plans, **approved_blue_plans}
 
     # This is 'no coordination' vs. 'no coordination'

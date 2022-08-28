@@ -86,3 +86,5 @@ def CreateDecentralizedController(env, agents):
 
     # Running the decentralized agents
     decentralized_random_controller.run(render=True, max_iteration=1000)
+
+

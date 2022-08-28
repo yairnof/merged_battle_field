@@ -62,6 +62,8 @@ def seen_agent_ids(obs, opponent_color):
                 char_arr = [str(i) for i in digits_arr.tolist()]
                 char_arr.reverse()
                 agent_id = int(''.join(char_arr), 2)
+                if agent_id>80:
+                    agent_id-=80
                 agent_name = opponent_color + '_' + str(agent_id)
                 agent_ids.append(agent_name)
 
@@ -88,7 +90,7 @@ def action_num_to_diff(action_num):
 
 # Get action num from desired diff
 def diff_to_action_num(diff):
-    action_num = [num for (num, name, x, y) in action_tuples if [x, y] == diff]
+    action_num = [num for (num, name, x, y) in action_tuples if [y, x] == diff]
     return action_num[0]
 
 
@@ -193,7 +195,39 @@ def team_around_agent(agent_obs):
             agent_enemies[i][j] = agent_obs[i, j][1]
     return agent_enemies
 
+def neighbor_cells(agent_obs):
+    agent_pos = agent_pos_from_its_obs(agent_obs)
+    return [[agent_pos[0] + 1, agent_pos[1]    ],
+            [agent_pos[0] - 1, agent_pos[1]    ],
+            [agent_pos[0]    , agent_pos[1] + 1],
+            [agent_pos[0]    , agent_pos[1] - 1],
+            [agent_pos[0] + 1, agent_pos[1] + 1],
+            [agent_pos[0] + 1, agent_pos[1] - 1],
+            [agent_pos[0] - 1, agent_pos[1] - 1],
+            [agent_pos[0] - 1, agent_pos[1] + 1],
+            [agent_pos[0] + 2, agent_pos[1]    ],
+            [agent_pos[0] - 2, agent_pos[1]    ],
+            [agent_pos[0]    , agent_pos[1] + 2],
+            [agent_pos[0]    , agent_pos[1] - 2]]
+
 
 # Works only with minimap=True and extra_features=True
 def agent_pos_from_its_obs(agent_obs):
     return np.round(agent_obs[0, 0, 39:41] * const.MAP_SIZE)
+
+
+def state_grid(state):
+    grid = np.empty([const.MAP_SIZE, const.MAP_SIZE])
+    for i in range(const.MAP_SIZE):
+        for j in range(const.MAP_SIZE):
+            grid[i][j] = state[i, j][0]
+    return grid
+
+
+def state_enemies(state, my_color):
+    enemies_idx = 2 if my_color == 'blue' else 4
+    enemies = np.empty([const.MAP_SIZE, const.MAP_SIZE])
+    for i in range(const.MAP_SIZE):
+        for j in range(const.MAP_SIZE):
+            enemies[i][j] = state[i, j][enemies_idx]
+    return enemies

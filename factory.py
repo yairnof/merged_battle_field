@@ -76,8 +76,8 @@ def CreateDecentralizedAgents_old(env, blue_decision_maker, red_decision_maker):
 
 
 # Create multiple agents divided into two groups of different decision makers
-def CreateDecentralizedAgents(env, blue_decision_maker, red_decision_maker, blue_use_env_and_ids=False, red_use_env_and_agent_ids=False):
-    if red_use_env_and_agent_ids:
+def CreateDecentralizedAgents(env, blue_decision_maker, red_decision_maker, blue_use_env_and_ids=False, red_use_env_and_ids=False):
+    if red_use_env_and_ids:
         decentralized_red_agents = {
             agent_id: Agent(red_decision_maker(env, agent_id))
             for agent_id in env.get_env_agents() if 'red' in agent_id
@@ -118,7 +118,9 @@ def CreateDecentralizedController(env, agents, coordinator=None, plan_length=0):
     decentralized_controller = DecentralizedControllerCoordinator(env, agents, coordinator, plan_length)
 
     # Running the decentralized agents
-    decentralized_controller.run(render=True, max_iteration=const.MAX_ITERATIONS)
+    last_iteration = decentralized_controller.run(render=True, max_iteration=const.MAX_ITERATIONS)
+
+    return last_iteration
 
 
 # Create a simulation of joint_plan
@@ -127,6 +129,5 @@ def CreateSimulationController(env, joint_plan):
     plan_length = min([len(plan) for (agent, plan) in joint_plan.items()])
     sim_controller.run(render=False, max_iteration=plan_length)
     return sim_controller.total_rewards, sim_controller.observations
-
 
 

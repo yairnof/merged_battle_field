@@ -23,27 +23,12 @@ class CentralizedController(Controller):
         Returns:
             dict: dict of all the actions
         """
-        # observations = {}
-        # # Dict to list:
-        # for agent_name in self.agents:
-        #     observations[agent_name] = observation[agent_name]
-        #
-        # state = self.decode_state(observations)
-        # # centerlized decision making
-        # joint_act = self.central_agent.decision_maker.get_action(state)
-        # joint_act = self.decode_action(joint_act, len(self.env.get_env_agents()))
-        # joint_action = {}
-        # for i, agent_name in enumerate(self.env.get_env_agents()):
-        #     action = joint_act[i]
-        #     joint_action[agent_name] = action
-        #
-        # return joint_action
 
         observation = {agent_id: self.central_agent.get_observation(obs)
                        for agent_id, obs in observation.items()}
         # save observations (step,observations of this step)
         self.observations.append(observation)
-        self.step+=1
+        self.step += 1
 
         return self.central_agent.get_decision_maker().get_action(observation)
 

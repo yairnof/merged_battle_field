@@ -22,9 +22,9 @@ class DecisionMaker(ABC):
     """
 
     @abstractmethod
-    def get_action(self, observation):
+    def get_action(self, observation, return_agent_id=False):
         pass
 
     # A decision maker can calculate and return a whole deterministic plan
-    def get_plan(self, observation, plan_length):
+    def get_plan(self, observation, plan_length, return_agent_id=False):
         return [self.get_action(observation)]  # The default plan is the one step plan given by get_action

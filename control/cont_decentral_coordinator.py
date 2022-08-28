@@ -1,4 +1,6 @@
 from .controller import Controller
+import constants as const
+from joblib import Parallel, delayed, parallel_backend
 
 class DecentralizedControllerCoordinator(Controller):
 
@@ -30,21 +32,46 @@ class DecentralizedControllerCoordinator(Controller):
 
         joint_action = {}
         joint_plan = {}
-        for agent_name in self.agent_ids:
-            if observation.get(agent_name) is None:
-                continue
-            if self.coordinator is not None:  # If there's a coordinator, the decision maker returns a plan
-                try:
-                    plan = self.agents[agent_name].get_decision_maker().get_plan(observation[agent_name], self.plan_length)
-                except:
-                    plan = self.agents[agent_name].get_decision_maker().get_action(observation[agent_name])
-                joint_plan[agent_name] = plan
+
+        if const.PARALLEL:
+            if self.coordinator is None:
+                delayed_funcs = [delayed(self.agents[agent_name].get_decision_maker().get_action)(observation[agent_name], True)
+                                 for agent_name in self.agent_ids if observation.get(agent_name) is not None]
             else:
-                action = self.agents[agent_name].get_decision_maker().get_action(observation[agent_name])
-                joint_action[agent_name] = action
+                delayed_funcs = [
+                    delayed(self.agents[agent_name].get_decision_maker().get_plan)(observation[agent_name], self.plan_length, True)
+                    for agent_name in self.agent_ids if observation.get(agent_name) is not None]
+
+            with parallel_backend(backend="threading"):
+                list_tuple_actions = Parallel(n_jobs=-1, verbose=5)(delayed_funcs)
+
+
+
+            if self.coordinator is None:
+                joint_action = dict(list_tuple_actions)
+            else:
+                joint_plan = dict(list_tuple_actions)
+
+            # for d in list_action_dict:
+            #     joint_action.update(d)
+
+        else:
+            for agent_name in self.agent_ids:
+                if observation.get(agent_name) is None:
+                    continue
+                if self.coordinator is not None:  # If there's a coordinator, the decision maker returns a plan
+                    try:
+                        plan = self.agents[agent_name].get_decision_maker().get_plan(observation[agent_name], self.plan_length)
+                    except:
+                         plan = self.agents[agent_name].get_decision_maker().get_action(observation[agent_name])
+                    joint_plan[agent_name] = plan
+                else:
+                    action = self.agents[agent_name].get_decision_maker().get_action(observation[agent_name])
+                    joint_action[agent_name] = action
 
         # The coordinator's approve_joint_action returns the next joint action, after considering the joint plan
         if self.coordinator is not None:
             joint_action = self.coordinator.approve_joint_plan(joint_plan, observation)
 
+        print('Another one bites the dust')
         return joint_action

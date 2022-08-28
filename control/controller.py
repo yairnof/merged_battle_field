@@ -32,7 +32,7 @@ class Controller(ABC):
             # display environment
             if render:
                 self.env.render()
-                #time.sleep(0.1)
+                time.sleep(0.1)
 
 
             # assert observation is in dict form
@@ -47,7 +47,8 @@ class Controller(ABC):
 
             # check if all agents are done
             if all(done.values()):
-                break
+                return index
+                # break
 
         if render:
             self.env.render()

@@ -1,11 +1,14 @@
 import random
 
-from agents import DecisionMaker
+from agents import DecisionMaker, Agent
+from control import CentralizedController
 from copy import deepcopy
 import constants as const
 import factory
 import performance
 import battle_field_ulits as utils
+from DMs.simple_DMs import SimDecisionMaker
+
 
 class Simple_DM(DecisionMaker):
     def __init__(self, action_space, health_th=0.5 , red_team=False):
@@ -158,11 +161,25 @@ class ApproxBestAction(DecisionMaker):
         self.my_color = self.agent_id.split('_')[0]
         self.opponent_color = 'blue' if self.my_color == 'red' else 'red'
         self.spaces = env.action_spaces
+        self.sim_controller = CentralizedController(self.sim_env, Agent(SimDecisionMaker(joint_plan={'dummy': [0]})))
+        self.iteration = 0
+        self.current_exploration_action = -1
 
-    def get_action(self, observation):
+
+    def get_action(self, observation, return_agent_id=False):
+        # if random.random() < 0.99:
+        # return self.spaces[self.agent_id].sample()
+        # if int(self.agent_id.split('_')[1]) > 12:
+        #     return utils.action_str_to_num('1-Down')
+        self.iteration += 1
+
         enemy_list = utils.seen_agent_ids(observation, self.opponent_color)
+        enemy_list = list(set(enemy_list)) # Sometimes the same agent appears twice
+
         if len(enemy_list) == 0:
-            return random.randint(const.MIN_ACTION_IDX, const.MAX_MOVE_ACTION_IDX)
+            return self.agent_id, random.randint(const.MIN_ACTION_IDX, const.MAX_MOVE_ACTION_IDX) if return_agent_id else random.randint(const.MIN_ACTION_IDX, const.MAX_MOVE_ACTION_IDX)
+            # return self.agent_id, self.current_exploration_action if return_agent_id else self.current_exploration_action
+
         best_action = const.MIN_ACTION_IDX
         best_value = const.REWARD_SUM_LB
         for action in range(const.MIN_ACTION_IDX, const.MAX_ACTION_IDX):
@@ -170,33 +187,102 @@ class ApproxBestAction(DecisionMaker):
             if value > best_value:
                 best_value = value
                 best_action = action
-        return best_action
+
+        return self.agent_id, best_action if return_agent_id else best_action
 
     def simulate_action(self, action, enemy_list):
-        best_opponent_reward_sum = self.best_opponent_response(action, enemy_list)
-        return -best_opponent_reward_sum
+        opponent_actions = {agent: [self.spaces[agent].sample()] for agent in enemy_list if self.opponent_color in agent}
+        opponent_actions[self.agent_id] = [action]
+        self.sim_controller.central_agent.decision_maker.update_plan(opponent_actions)
+        plan_length = min([len(plan) for (agent, plan) in opponent_actions.items()])
+        self.sim_controller.run(render=False, max_iteration=plan_length)
 
-    # Stochastic hill climbing
+        self.sim_env = deepcopy(self.original_env)  # Rewind simulated environment
+        reward_sum = performance.colored_total_rewards(self.sim_controller.total_rewards)
+        return reward_sum[self.my_color] - reward_sum[self.opponent_color]
+        # best_opponent_reward_sum = self.best_opponent_response(action, enemy_list)
+        # return -best_opponent_reward_sum
+
+
     def best_opponent_response(self, action, enemy_list):
-        current_opponent_actions = {agent: [self.spaces[agent].sample()] for agent in enemy_list if self.opponent_color in agent}
-        best_opponent_reward_sum = const.REWARD_SUM_LB
+        pass
+        ## This search is taking too long-  Stochastic hill climbing
+        # current_opponent_actions = {agent: [self.spaces[agent].sample()] for agent in enemy_list if self.opponent_color in agent}
+        # best_opponent_reward_sum = const.REWARD_SUM_LB
+        #
+        # for i in range(const.OPPONENT_ITERATIONS):
+        #     selected_changes = random.sample(list(current_opponent_actions.keys()), min(const.NEIGHBORHOOD_SIZE, len(enemy_list)))
+        #     opponent_actions_candidate = {agent: [self.spaces[agent].sample()] if agent in selected_changes else current_opponent_actions[agent] for agent in current_opponent_actions.keys()}
+        #     checked_actions = opponent_actions_candidate.copy()
+        #     checked_actions[self.agent_id] = [action]
+        #     total_rewards, sim_obs_seq = factory.CreateSimulationController(self.sim_env, checked_actions)
+        #     self.sim_controller.central_agent.decision_maker.update_plan(checked_actions)
+        #     plan_length = min([len(plan) for (agent, plan) in checked_actions.items()])
+        #     self.sim_controller.run(render=False, max_iteration=plan_length)
+        #     reward_sum = performance.colored_total_rewards(self.sim_controller.total_rewards)
+        #     opponent_reward_sum = reward_sum[self.opponent_color]
+        #     if opponent_reward_sum > best_opponent_reward_sum:
+        #         best_opponent_reward_sum = opponent_reward_sum
+        #         current_opponent_actions = opponent_actions_candidate.copy()
+        #     self.sim_env = deepcopy(self.original_env)  # Rewind simulated environment
+        #
+        # return best_opponent_reward_sum
 
-        for i in range(const.OPPONENT_ITERATIONS):
-            selected_changes = random.sample(list(current_opponent_actions.keys()), const.NEIGHBORHOOD_SIZE)
-            opponent_actions_candidate = {agent: [self.spaces[agent].sample()] if agent in selected_changes else current_opponent_actions[agent] for agent in current_opponent_actions.keys()}
-            checked_actions = opponent_actions_candidate.copy() # deepcopy(opponent_actions_candidate)
-            checked_actions[self.agent_id] = [action]
-            total_rewards, sim_obs_seq = factory.CreateSimulationController(self.sim_env, checked_actions)
-            reward_sum = performance.colored_total_rewards(total_rewards)
-            opponent_reward_sum = reward_sum[self.opponent_color]
-            if opponent_reward_sum > best_opponent_reward_sum:
-                best_opponent_reward_sum = opponent_reward_sum
-                current_opponent_actions = opponent_actions_candidate.copy()
+    def get_plan(self, observation, plan_length, return_agent_id=False):
+        return self.get_action(observation, return_agent_id)
+
+
+
+class Centralized_programmed_DM(DecisionMaker):
+    def __init__(self, env, my_color):
+        self.env = env
+        self.my_color = my_color
+        self.opponent_color = 'blue' if self.my_color == 'red' else 'red'
+        self.spaces = env.action_spaces
+
+    def get_action(self, observation):
+        # enemy_agents = [agent for agent in self.env.get_env_agents() if self.opponent_color in agent]
+        my_random_actions = {agent: [self.spaces[agent].sample()] for agent in self.env.get_env_agents() if
+                              self.my_color in agent}
+        return my_random_actions
+
+
+class Centralized_Search_DM(DecisionMaker):
+    def __init__(self, env, my_color):
+        self.original_env = env
+        self.sim_env = deepcopy(env)
+        self.my_color = my_color
+        self.opponent_color = 'blue' if self.my_color == 'red' else 'red'
+        self.spaces = env.action_spaces
+        self.sim_controller = CentralizedController(self.sim_env,
+                                                    Agent(SimDecisionMaker(joint_plan={'dummy': [0]})))
+
+    def get_action(self, observation):
+        # if random.random() < 0.99:
+        # return self.spaces[self.agent_id].sample()
+
+        my_current_actions = {agent: [self.spaces[agent].sample()] for agent in self.sim_env.get_env_agents() if
+                              self.my_color in agent}
+        opponent_actions = {agent: [self.spaces[agent].sample()] for agent in self.sim_env.get_env_agents() if
+                            self.opponent_color in agent}
+        best_reward_diff = const.REWARD_SUM_LB
+
+        for i in range(const.MY_ITERATIONS):
+            selected_changes = random.sample(list(my_current_actions.keys()), const.NEIGHBORHOOD_SIZE)
+            actions_candidate = {
+                agent: [self.spaces[agent].sample()] if agent in selected_changes else my_current_actions[agent] for
+                agent in my_current_actions.keys()}
+            checked_actions = actions_candidate.copy()
+            checked_actions = {**checked_actions, **opponent_actions}
+
+            self.sim_controller.central_agent.decision_maker.update_plan(checked_actions)
+            plan_length = min([len(plan) for (agent, plan) in checked_actions.items()])
+            self.sim_controller.run(render=False, max_iteration=plan_length)
+            reward_sum = performance.colored_total_rewards(self.sim_controller.total_rewards)
+            reward_diff = reward_sum[self.my_color] - reward_sum[self.opponent_color]
+            if reward_diff > best_reward_diff:
+                best_reward_diff = reward_diff
+                my_current_actions = actions_candidate.copy()
             self.sim_env = deepcopy(self.original_env)  # Rewind simulated environment
 
-        return best_opponent_reward_sum
-
-
-
-
-
+        return my_current_actions
